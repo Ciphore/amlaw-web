@@ -38,7 +38,7 @@ export async function searchAttorneys(params: {
 export type Facets = Record<string, Record<string, number>>
 
 export async function fetchFacets(): Promise<Facets> {
-  const r = await fetch(`${BASE}/facets`, { cache: "no-store" })
+  const r = await fetch(`${BASE}/search/facets`, { cache: "no-store" })
   if (!r.ok) throw new Error(`facets_failed ${r.status}`)
   const json = await r.json()
   const raw = (json && typeof json === "object") ? (json.facets ?? json) : {}
