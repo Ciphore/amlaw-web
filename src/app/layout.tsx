@@ -3,13 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 // Polyfill URL.canParse for Node runtimes that don't support it
-interface URLWithCanParse extends URLConstructor {
-  canParse?: (input: string, base?: string) => boolean
-}
+type URLWithCanParse = typeof URL & { canParse?: (input: string, base?: string) => boolean }
 
-declare const URLPoly: URLWithCanParse
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-const URLPoly = URL as unknown as URLWithCanParse
+const URLPoly: URLWithCanParse = URL as unknown as URLWithCanParse
 
 if (typeof URL !== "undefined" && !URLPoly.canParse) {
   URLPoly.canParse = (input: string, base?: string) => {
