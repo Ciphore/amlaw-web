@@ -9,6 +9,13 @@ export type Attorney = {
   jd_year?: number | null
 }
 
+export type SearchResponse = {
+  hits: Attorney[]
+  total: number
+  limit: number
+  offset: number
+}
+
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api"
 
 export async function searchAttorneys(params: {
@@ -21,18 +28,26 @@ export async function searchAttorneys(params: {
   jd_max?: number
   limit?: number
   offset?: number
-} = {}): Promise<Attorney[]> {
+} = {}): Promise<SearchResponse> {
   const u = new URL(`${BASE}/search`, "http://dummy")
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== "") u.searchParams.set(k, String(v))
   })
+  // Always request meta from the backend
+  u.searchParams.set('meta', '1')
+
   const r = await fetch(`${BASE}/search?${u.searchParams.toString()}`, { cache: "no-store" })
   if (!r.ok) throw new Error(`search_failed ${r.status}`)
-  const json = await r.json()
-  // API returns an array already; but be defensive:
-  if (Array.isArray(json)) return json
-  if (Array.isArray(json.hits)) return json.hits
-  return []
+
+  type Raw = SearchResponse | Attorney[] | { hits?: Attorney[]; total?: number; limit?: number; offset?: number }
+  const json: Raw = await r.json()
+
+  const hits: Attorney[] = Array.isArray(json) ? json : (Array.isArray(json?.hits) ? json.hits! : [])
+  const total: number = !Array.isArray(json) && typeof json?.total === 'number' ? json.total : hits.length
+  const limit: number = !Array.isArray(json) && typeof json?.limit === 'number' ? json.limit : (typeof params.limit === 'number' ? params.limit : hits.length)
+  const offset: number = !Array.isArray(json) && typeof json?.offset === 'number' ? json.offset : (typeof params.offset === 'number' ? params.offset : 0)
+
+  return { hits, total, limit, offset }
 }
 
 export type Facets = Record<string, Record<string, number>>

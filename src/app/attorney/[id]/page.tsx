@@ -42,7 +42,8 @@ function absoluteBase(): string {
 
 export default async function AttorneyPage({ params }: { params: Promise<{ id: string }> }) {
   const p = await params
-  const r = await fetch(new URL(`${absoluteBase()}/attorney/${encodeURIComponent(p.id)}`), { cache: 'no-store' })
+  // Use a relative URL to avoid environment/base mismatches
+  const r = await fetch(`${BASE}/attorney/${encodeURIComponent(p.id)}`, { cache: 'no-store' })
   if (!r.ok) return <div className="p-6">Not found</div>
   const data = await r.json()
   const a: Attorney | undefined = (data && typeof data === 'object' && 'attorney_id' in data) ? (data as Attorney) : undefined

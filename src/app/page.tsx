@@ -1,14 +1,6 @@
 import Filters from '@/components/Filters'
 
-type Attorney = {
-  attorney_id: string
-  full_name: string
-  title?: string
-  firm_name?: string
-  office_city?: string
-  jd_year?: number
-  headshot_url?: string
-}
+import { type SearchResponse, type Attorney } from '@/lib/api'
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
 
@@ -58,11 +50,14 @@ export default async function Home({
     limit: String(limit),
     offset: String(offset),
     sort,
+    meta: '1',
   })
 
   const r = await fetch(new URL(`${absoluteBase()}/search?${qs}`), { cache: 'no-store' })
-  const json = await r.json()
-  const data: Attorney[] = Array.isArray(json) ? json : json.hits ?? []
+  const json = await r.json() as SearchResponse | Attorney[] | { hits?: Attorney[]; total?: number; limit?: number; offset?: number }
+  const hits: Attorney[] = Array.isArray(json) ? json : (Array.isArray(json?.hits) ? json.hits! : [])
+  const total: number = !Array.isArray(json) && typeof json?.total === 'number' ? json.total : hits.length
+  const data: SearchResponse = { hits, total, limit, offset }
 
   function buildHref(nextPage: number) {
     const usp = new URLSearchParams()
@@ -77,64 +72,42 @@ export default async function Home({
   }
 
   return (
-    <main className="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-      <div className="md:col-span-1">
+    <main className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6 max-w-6xl mx-auto">
         <Filters />
-      </div>
 
-      <div className="md:col-span-3">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Attorneys</h1>
-          <form method="get" className="flex items-center gap-2">
-            <select
-              name="sort"
-              defaultValue={sort}
-              className="border rounded px-2 py-1"
-            >
-              <option value="">Best match</option>
-              <option value="jd_year:desc">JD Year (newer first)</option>
-              <option value="jd_year:asc">JD Year (older first)</option>
-            </select>
-            {/* preserve existing params */}
-            {(() => {
-              const keys = ['query','city','title','firm','practice','jd_min','jd_max','limit'] as const
-              return keys.map((k) => {
-                const v = pickString(sp[k])
-                return v ? <input key={k} type="hidden" name={k} value={v} /> : null
-              })
-            })()}
-            {/* reset page to 1 when sorting changes */}
-            <input type="hidden" name="page" value="1" />
-            <button type="submit" className="border rounded px-3 py-1">Apply</button>
-          </form>
-        </div>
+        <div>
+          <h1 className="text-2xl font-semibold">Attorney Directory</h1>
 
-        <ul className="mt-4 space-y-3">
-          {data.map((a) => (
-            <li key={a.attorney_id} className="border rounded p-3 flex gap-3">
-              {a.headshot_url ? (
-                <img src={a.headshot_url} alt="" className="w-14 h-14 rounded object-cover" />
-              ) : (
-                <div className="w-14 h-14 rounded bg-gray-200" />
-              )}
-              <div>
-                <div className="font-semibold">
-                  <a href={`/attorney/${a.attorney_id}`} className="hover:underline">
-                    {a.full_name}
-                  </a>
+          <div className="mt-2 text-sm text-gray-600">Showing {data.offset + 1}–{Math.min(data.offset + limit, data.total)} of {data.total}</div>
+
+          <ul className="mt-4 grid gap-2">
+            {data.hits.map((a) => (
+              <li key={a.attorney_id} className="border rounded p-3 flex gap-3">
+                {a.headshot_url ? (
+                  <img src={a.headshot_url} alt="" className="w-14 h-14 rounded object-cover" />
+                ) : (
+                  <div className="w-14 h-14 rounded bg-gray-200" />
+                )}
+                <div>
+                  <div className="font-semibold">
+                    <a href={`/attorney/${a.attorney_id}`} className="hover:underline">
+                      {a.full_name}
+                    </a>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {a.title} @ {a.firm_name} — {a.office_city} • JD {a.jd_year ?? '—'}
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600">
-                  {a.title} @ {a.firm_name} — {a.office_city} • JD {a.jd_year ?? '—'}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
 
-        {/* Simple pager */}
-        <div className="mt-6 flex gap-2">
-          <a className="border rounded px-3 py-1" href={buildHref(Math.max(1, page - 1))}>Prev</a>
-          <a className="border rounded px-3 py-1" href={buildHref(page + 1)}>Next</a>
+          {/* Simple pager */}
+          <div className="mt-6 flex gap-2">
+            <a className="border rounded px-3 py-1" href={buildHref(Math.max(1, page - 1))}>Prev</a>
+            <a className="border rounded px-3 py-1" href={buildHref(page + 1)}>Next</a>
+          </div>
         </div>
       </div>
     </main>
