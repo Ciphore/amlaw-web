@@ -40,79 +40,20 @@ function absoluteBase(): string {
   return `${site}${BASE}`
 }
 
-export default async function AttorneyPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function AttorneyPage({ params }: { params: Promise<{ id: string }> }) {
   const p = await params
-  const spRaw = (await searchParams?.catch(() => ({}))) || {}
-  const sp = spRaw as Record<string, string | string[] | undefined>
-  const pick = (v: string | string[] | undefined) => (typeof v === 'string' ? v : Array.isArray(v) ? v[0] : undefined)
-  const debug = pick(sp['debug']) === '1'
-  const id = decodeURIComponent(p.id)
-
-  type AnyRec = Record<string, unknown>
-  type Trace = { url: string; ok: boolean; status?: number; reason?: string }
-  const traces: Trace[] = []
-
-  async function tryFetch(u: string): Promise<Attorney | undefined> {
-    try {
-      const r = await fetch(u, { cache: 'no-store' })
-      traces.push({ url: u, ok: r.ok, status: r.status })
-      if (!r.ok) return undefined
-      const raw: unknown = await r.json()
-
-      let arr: unknown[] | null = null
-      if (Array.isArray(raw)) {
-        arr = raw
-      } else if (raw && typeof raw === 'object') {
-        const o = raw as AnyRec
-        if (Array.isArray(o.hits)) arr = o.hits as unknown[]
-        else if (Array.isArray(o.data)) arr = o.data as unknown[]
-        else if ('attorney_id' in o || 'id' in o || 'full_name' in o) {
-          return o as unknown as Attorney
-        }
-      }
-
-      if (!arr) return undefined
-      const match = arr.find((x) => {
-        if (!x || typeof x !== 'object') return false
-        const t = x as Partial<Attorney> & { id?: string; slug?: string }
-        return t.attorney_id === id || t.id === id || t.slug === id
-      }) as Attorney | undefined
-      return match
-    } catch (e) {
-      traces.push({ url: u, ok: false, reason: (e as Error).message })
-      return undefined
-    }
-  }
-
-  const base = '/api/attorney'
-  const enc = encodeURIComponent
-  const candidates: string[] = [
-    `${base}/${enc(id)}`,
-  ]
-
+  const url = `${absoluteBase()}/attorneys?id=${encodeURIComponent(p.id)}`
+  const r = await fetch(new URL(url), { cache: 'no-store' })
+  const json = await r.json()
   let a: Attorney | undefined
-  for (const u of candidates) {
-    a = await tryFetch(u)
-    if (a) break
+  if (Array.isArray(json)) {
+    const arr = json as Attorney[]
+    a = arr.find((x) => x && x.attorney_id === p.id) ?? arr[0]
+  } else {
+    a = json as Attorney | undefined
   }
 
-  if (!a) {
-    return (
-      <div className="p-6 space-y-4">
-        <div>Not found</div>
-        {debug && (
-          <details className="mt-4" open>
-            <summary className="cursor-pointer">Debug traces</summary>
-            <ul className="text-sm text-gray-600 list-disc pl-6">
-              {traces.map((t, i) => (
-                <li key={i}><code>{t.url}</code> — {String(t.ok)}{t.status ? ` (${t.status})` : ''}{t.reason ? ` — ${t.reason}` : ''}</li>
-              ))}
-            </ul>
-          </details>
-        )}
-      </div>
-    )
-  }
+  if (!a) return <div className="p-6">Not found</div>
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-4">
