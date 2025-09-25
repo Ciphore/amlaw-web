@@ -1,3 +1,5 @@
+import { headers } from 'next/headers'
+
 export type Attorney = {
   attorney_id: string
   full_name: string
@@ -16,7 +18,26 @@ export type SearchResponse = {
   offset: number
 }
 
-const BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").trim()
+const PUBLIC_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").trim()
+
+async function resolveBase(): Promise<string> {
+  // If a full absolute base is provided, use it directly
+  if (PUBLIC_BASE.startsWith('http://') || PUBLIC_BASE.startsWith('https://')) return PUBLIC_BASE
+
+  // Otherwise, derive same-origin absolute base from request headers (server-side)
+  try {
+    const h = await headers()
+    const forwardedHost = h.get('x-forwarded-host') || undefined
+    const host = forwardedHost || h.get('host') || process.env.VERCEL_URL || process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || 'localhost:3000'
+    const protoHeader = h.get('x-forwarded-proto') || undefined
+    const proto = protoHeader || (String(host).includes('localhost') ? 'http' : 'https')
+    const site = host.startsWith('http') ? host : `${proto}://${host}`
+    return `${site}${PUBLIC_BASE}`
+  } catch {
+    const fallbackSite = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    return `${fallbackSite}${PUBLIC_BASE}`
+  }
+}
 
 export async function searchAttorneys(params: {
   query?: string
@@ -29,7 +50,8 @@ export async function searchAttorneys(params: {
   limit?: number
   offset?: number
 } = {}): Promise<SearchResponse> {
-  const u = new URL(`${BASE}/search`, "http://dummy")
+  const base = await resolveBase()
+  const u = new URL(`${base}/search`, "http://dummy")
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== "") u.searchParams.set(k, String(v))
   })
@@ -41,7 +63,7 @@ export async function searchAttorneys(params: {
 
   let r: Response
   try {
-    r = await fetch(`${BASE}/search?${u.searchParams.toString()}`, { cache: "no-store" })
+    r = await fetch(`${base}/search?${u.searchParams.toString()}`, { cache: "no-store" })
   } catch {
     return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
   }
@@ -69,9 +91,10 @@ export async function searchAttorneys(params: {
 export type Facets = Record<string, Record<string, number>>
 
 export async function fetchFacets(): Promise<Facets> {
+  const base = await resolveBase()
   let r: Response
   try {
-    r = await fetch(`${BASE}/search/facets`, { cache: "no-store" })
+    r = await fetch(`${base}/search/facets`, { cache: "no-store" })
   } catch {
     return {}
   }
