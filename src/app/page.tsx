@@ -1,17 +1,6 @@
 import Filters from '@/components/Filters'
 
-import { type SearchResponse, type Attorney } from '@/lib/api'
-
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
-
-function absoluteBase(): string {
-  if (BASE.startsWith('http')) return BASE
-  const site =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  return `${site}${BASE}`
-}
+import { searchAttorneys, type SearchResponse } from '@/lib/api'
 
 function getQS(searchParams: Record<string, string | undefined>) {
   const usp = new URLSearchParams()
@@ -53,11 +42,18 @@ export default async function Home({
     meta: '1',
   })
 
-  const r = await fetch(new URL(`${absoluteBase()}/search?${qs}`), { cache: 'no-store' })
-  const json = await r.json() as SearchResponse | Attorney[] | { hits?: Attorney[]; total?: number; limit?: number; offset?: number }
-  const hits: Attorney[] = Array.isArray(json) ? json : (Array.isArray(json?.hits) ? json.hits! : [])
-  const total: number = !Array.isArray(json) && typeof json?.total === 'number' ? json.total : hits.length
-  const data: SearchResponse = { hits, total, limit, offset }
+  // Use shared helper which normalizes shapes and guards against non-JSON
+  const data: SearchResponse = await searchAttorneys({
+    query: pickString(sp.query),
+    city: pickString(sp.city),
+    title: pickString(sp.title),
+    firm: pickString(sp.firm),
+    practice: pickString(sp.practice),
+    jd_min: pickString(sp.jd_min) ? Number(pickString(sp.jd_min)) : undefined,
+    jd_max: pickString(sp.jd_max) ? Number(pickString(sp.jd_max)) : undefined,
+    limit,
+    offset,
+  })
 
   function buildHref(nextPage: number) {
     const usp = new URLSearchParams()
