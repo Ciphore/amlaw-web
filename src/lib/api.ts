@@ -16,7 +16,7 @@ export type SearchResponse = {
   offset: number
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api"
+const BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").trim()
 
 export async function searchAttorneys(params: {
   query?: string

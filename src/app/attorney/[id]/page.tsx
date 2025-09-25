@@ -17,6 +17,8 @@
   }
 }
 
+// remove headers import
+
 type Attorney = {
   attorney_id: string
   full_name: string
@@ -37,31 +39,30 @@ function sameOriginApiBase(): string {
   return `${site}/api`
 }
 
-export default async function AttorneyPage({ params }: { params: Promise<{ id: string }> }) {
-  const p = await params
-  // Always use same-origin absolute /api to avoid env/base mismatches
+export default async function AttorneyPage({ params }: { params: { id: string } }) {
+  const p = params
   const r = await fetch(`${sameOriginApiBase()}/attorney/${encodeURIComponent(p.id)}`, { cache: 'no-store' })
-  if (!r.ok) return <div className="p-6">Not found</div>
-  const data = await r.json()
-  const a: Attorney | undefined = (data && typeof data === 'object' && 'attorney_id' in data) ? (data as Attorney) : undefined
+   if (!r.ok) return <div className="p-6">Not found</div>
+   const data = await r.json()
+   const a: Attorney | undefined = (data && typeof data === 'object' && 'attorney_id' in data) ? (data as Attorney) : undefined
 
-  if (!a) return <div className="p-6">Not found</div>
+   if (!a) return <div className="p-6">Not found</div>
 
-  return (
-    <main className="max-w-3xl mx-auto p-6 space-y-4">
-      <div className="flex gap-4">
-        {a.headshot_url ? (
-          <img src={a.headshot_url} className="w-28 h-28 rounded object-cover" alt="" />
-        ) : (
-          <div className="w-28 h-28 rounded bg-gray-200" />
-        )}
-        <div>
-          <h1 className="text-2xl font-semibold">{a.full_name}</h1>
-          <div className="text-gray-600">{a.title} @ {a.firm_name}</div>
-          <div className="text-gray-600">{a.office_city}{a.office_country ? `, ${a.office_country}` : ''} • JD {a.jd_year ?? '—'}</div>
-        </div>
-      </div>
-      {a.bio && <p className="leading-7 whitespace-pre-wrap">{a.bio}</p>}
-    </main>
-  )
+   return (
+     <main className="max-w-3xl mx-auto p-6 space-y-4">
+       <div className="flex gap-4">
+         {a.headshot_url ? (
+           <img src={a.headshot_url} className="w-28 h-28 rounded object-cover" alt="" />
+         ) : (
+           <div className="w-28 h-28 rounded bg-gray-200" />
+         )}
+         <div>
+           <h1 className="text-2xl font-semibold">{a.full_name}</h1>
+           <div className="text-gray-600">{a.title} @ {a.firm_name}</div>
+           <div className="text-gray-600">{a.office_city}{a.office_country ? `, ${a.office_country}` : ''} • JD {a.jd_year ?? '—'}</div>
+         </div>
+       </div>
+       {a.bio && <p className="leading-7 whitespace-pre-wrap">{a.bio}</p>}
+     </main>
+   )
 }
