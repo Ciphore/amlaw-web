@@ -36,16 +36,32 @@ export async function searchAttorneys(params: {
   // Always request meta from the backend
   u.searchParams.set('meta', '1')
 
-  const r = await fetch(`${BASE}/search?${u.searchParams.toString()}`, { cache: "no-store" })
-  if (!r.ok) throw new Error(`search_failed ${r.status}`)
+  const limitVal = typeof params.limit === 'number' ? params.limit : 20
+  const offsetVal = typeof params.offset === 'number' ? params.offset : 0
+
+  let r: Response
+  try {
+    r = await fetch(`${BASE}/search?${u.searchParams.toString()}`, { cache: "no-store" })
+  } catch {
+    return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
+  }
+  if (!r.ok) return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
+
+  const ct = r.headers.get('content-type') || 'application/json'
+  if (!ct.includes('json')) return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
 
   type Raw = SearchResponse | Attorney[] | { hits?: Attorney[]; total?: number; limit?: number; offset?: number }
-  const json: Raw = await r.json()
+  let json: Raw
+  try {
+    json = await r.json()
+  } catch {
+    return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
+  }
 
   const hits: Attorney[] = Array.isArray(json) ? json : (Array.isArray(json?.hits) ? json.hits! : [])
   const total: number = !Array.isArray(json) && typeof json?.total === 'number' ? json.total : hits.length
-  const limit: number = !Array.isArray(json) && typeof json?.limit === 'number' ? json.limit : (typeof params.limit === 'number' ? params.limit : hits.length)
-  const offset: number = !Array.isArray(json) && typeof json?.offset === 'number' ? json.offset : (typeof params.offset === 'number' ? params.offset : 0)
+  const limit: number = !Array.isArray(json) && typeof json?.limit === 'number' ? json.limit : limitVal
+  const offset: number = !Array.isArray(json) && typeof json?.offset === 'number' ? json.offset : offsetVal
 
   return { hits, total, limit, offset }
 }
@@ -53,9 +69,21 @@ export async function searchAttorneys(params: {
 export type Facets = Record<string, Record<string, number>>
 
 export async function fetchFacets(): Promise<Facets> {
-  const r = await fetch(`${BASE}/search/facets`, { cache: "no-store" })
-  if (!r.ok) throw new Error(`facets_failed ${r.status}`)
-  const json = await r.json()
-  const raw = (json && typeof json === "object") ? (json.facets ?? json) : {}
+  let r: Response
+  try {
+    r = await fetch(`${BASE}/search/facets`, { cache: "no-store" })
+  } catch {
+    return {}
+  }
+  if (!r.ok) return {}
+  const ct = r.headers.get('content-type') || 'application/json'
+  if (!ct.includes('json')) return {}
+  let json: unknown
+  try {
+    json = await r.json()
+  } catch {
+    return {}
+  }
+  const raw = (json && typeof json === "object") ? (json as Record<string, unknown>).facets ?? json : {}
   return (raw && typeof raw === "object") ? raw as Facets : {}
 }
