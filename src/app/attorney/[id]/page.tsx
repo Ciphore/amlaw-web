@@ -29,21 +29,10 @@ type Attorney = {
   headshot_url?: string
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
-
-function absoluteBase(): string {
-  if (BASE.startsWith('http')) return BASE
-  const site =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  return `${site}${BASE}`
-}
-
 export default async function AttorneyPage({ params }: { params: Promise<{ id: string }> }) {
   const p = await params
-  // Use a relative URL to avoid environment/base mismatches
-  const r = await fetch(`${BASE}/attorney/${encodeURIComponent(p.id)}`, { cache: 'no-store' })
+  // Always hit the local API route to avoid environment/base mismatches
+  const r = await fetch(`/api/attorney/${encodeURIComponent(p.id)}`, { cache: 'no-store' })
   if (!r.ok) return <div className="p-6">Not found</div>
   const data = await r.json()
   const a: Attorney | undefined = (data && typeof data === 'object' && 'attorney_id' in data) ? (data as Attorney) : undefined
