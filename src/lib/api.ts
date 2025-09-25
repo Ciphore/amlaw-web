@@ -21,10 +21,7 @@ export type SearchResponse = {
 const PUBLIC_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").trim()
 
 async function resolveBase(): Promise<string> {
-  // If a full absolute base is provided, use it directly
   if (PUBLIC_BASE.startsWith('http://') || PUBLIC_BASE.startsWith('https://')) return PUBLIC_BASE
-
-  // Otherwise, derive same-origin absolute base from request headers (server-side)
   try {
     const h = await headers()
     const forwardedHost = h.get('x-forwarded-host') || undefined
@@ -51,19 +48,28 @@ export async function searchAttorneys(params: {
   offset?: number
 } = {}): Promise<SearchResponse> {
   const base = await resolveBase()
-  const u = new URL(`${base}/search`, "http://dummy")
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== "") u.searchParams.set(k, String(v))
-  })
-  // Always request meta from the backend
-  u.searchParams.set('meta', '1')
 
   const limitVal = typeof params.limit === 'number' ? params.limit : 20
   const offsetVal = typeof params.offset === 'number' ? params.offset : 0
 
+  const hasFilters = Boolean(
+    (params.query && params.query.trim() !== '') ||
+    params.city || params.title || params.firm || params.practice ||
+    params.jd_min !== undefined || params.jd_max !== undefined
+  )
+
+  const path = hasFilters ? 'search' : 'attorneys'
+
+  const u = new URL(`${base}/${path}`, 'http://dummy')
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') u.searchParams.set(k, String(v))
+  })
+  // Ask for meta when using the search endpoint to normalize shapes; harmless if upstream ignores it
+  if (hasFilters) u.searchParams.set('meta', '1')
+
   let r: Response
   try {
-    r = await fetch(`${base}/search?${u.searchParams.toString()}`, { cache: "no-store" })
+    r = await fetch(`${base}/${path}?${u.searchParams.toString()}`, { cache: 'no-store' })
   } catch {
     return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
   }
@@ -94,7 +100,7 @@ export async function fetchFacets(): Promise<Facets> {
   const base = await resolveBase()
   let r: Response
   try {
-    r = await fetch(`${base}/search/facets`, { cache: "no-store" })
+    r = await fetch(`${base}/search/facets`, { cache: 'no-store' })
   } catch {
     return {}
   }
@@ -107,6 +113,6 @@ export async function fetchFacets(): Promise<Facets> {
   } catch {
     return {}
   }
-  const raw = (json && typeof json === "object") ? (json as Record<string, unknown>).facets ?? json : {}
-  return (raw && typeof raw === "object") ? raw as Facets : {}
+  const raw = (json && typeof json === 'object') ? (json as Record<string, unknown>).facets ?? json : {}
+  return (raw && typeof raw === 'object') ? raw as Facets : {}
 }
