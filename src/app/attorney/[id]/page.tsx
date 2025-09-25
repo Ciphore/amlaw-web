@@ -42,16 +42,10 @@ function absoluteBase(): string {
 
 export default async function AttorneyPage({ params }: { params: Promise<{ id: string }> }) {
   const p = await params
-  const url = `${absoluteBase()}/attorneys?id=${encodeURIComponent(p.id)}`
-  const r = await fetch(new URL(url), { cache: 'no-store' })
-  const json = await r.json()
-  let a: Attorney | undefined
-  if (Array.isArray(json)) {
-    const arr = json as Attorney[]
-    a = arr.find((x) => x && x.attorney_id === p.id) ?? arr[0]
-  } else {
-    a = json as Attorney | undefined
-  }
+  const r = await fetch(new URL(`${absoluteBase()}/attorney/${encodeURIComponent(p.id)}`), { cache: 'no-store' })
+  if (!r.ok) return <div className="p-6">Not found</div>
+  const data = await r.json()
+  const a: Attorney | undefined = (data && typeof data === 'object' && 'attorney_id' in data) ? (data as Attorney) : undefined
 
   if (!a) return <div className="p-6">Not found</div>
 
