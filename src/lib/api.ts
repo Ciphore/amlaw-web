@@ -58,40 +58,63 @@ export async function searchAttorneys(params: {
     params.jd_min !== undefined || params.jd_max !== undefined
   )
 
-  const path = hasFilters ? 'search' : 'attorneys'
+  // Build URLs for search and attorneys
+  const searchU = new URL(`${base}/search`, 'http://dummy')
+  const attorneysU = new URL(`${base}/attorneys`, 'http://dummy')
 
-  const u = new URL(`${base}/${path}`, 'http://dummy')
   Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') u.searchParams.set(k, String(v))
+    if (v !== undefined && v !== null && v !== '') {
+      searchU.searchParams.set(k, String(v))
+      attorneysU.searchParams.set(k, String(v))
+    }
   })
-  // Ask for meta when using the search endpoint to normalize shapes; harmless if upstream ignores it
-  if (hasFilters) u.searchParams.set('meta', '1')
+  // Ask for meta on search to normalize shapes
+  searchU.searchParams.set('meta', '1')
 
-  let r: Response
-  try {
-    r = await fetch(`${base}/${path}?${u.searchParams.toString()}`, { cache: 'no-store' })
-  } catch {
-    return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
-  }
-  if (!r.ok) return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
-
-  const ct = r.headers.get('content-type') || 'application/json'
-  if (!ct.includes('json')) return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
-
-  type Raw = SearchResponse | Attorney[] | { hits?: Attorney[]; total?: number; limit?: number; offset?: number }
-  let json: Raw
-  try {
-    json = await r.json()
-  } catch {
-    return { hits: [], total: 0, limit: limitVal, offset: offsetVal }
+  // Helper to normalize responses
+  function normalize(json: unknown): SearchResponse {
+    type Raw = SearchResponse | Attorney[] | { hits?: Attorney[]; total?: number; limit?: number; offset?: number }
+    const raw = json as Raw
+    const hits: Attorney[] = Array.isArray(raw) ? raw : (Array.isArray(raw?.hits) ? raw.hits! : [])
+    const total: number = !Array.isArray(raw) && typeof raw?.total === 'number' ? raw.total : hits.length
+    const limit: number = !Array.isArray(raw) && typeof raw?.limit === 'number' ? raw.limit : limitVal
+    const offset: number = !Array.isArray(raw) && typeof raw?.offset === 'number' ? raw.offset : offsetVal
+    return { hits, total, limit, offset }
   }
 
-  const hits: Attorney[] = Array.isArray(json) ? json : (Array.isArray(json?.hits) ? json.hits! : [])
-  const total: number = !Array.isArray(json) && typeof json?.total === 'number' ? json.total : hits.length
-  const limit: number = !Array.isArray(json) && typeof json?.limit === 'number' ? json.limit : limitVal
-  const offset: number = !Array.isArray(json) && typeof json?.offset === 'number' ? json.offset : offsetVal
+  // First try search when filters are present; otherwise try search, then fall back to attorneys
+  const tryFetch = async (url: URL): Promise<SearchResponse | null> => {
+    let r: Response
+    try {
+      r = await fetch(`${url.origin}${url.pathname}?${url.searchParams.toString()}`, { cache: 'no-store' })
+    } catch {
+      return null
+    }
+    if (!r.ok) return null
+    const ct = r.headers.get('content-type') || 'application/json'
+    if (!ct.includes('json')) return null
+    try {
+      const json = await r.json()
+      const norm = normalize(json)
+      return norm
+    } catch {
+      return null
+    }
+  }
 
-  return { hits, total, limit, offset }
+  if (hasFilters) {
+    const fromSearch = await tryFetch(searchU)
+    return fromSearch ?? { hits: [], total: 0, limit: limitVal, offset: offsetVal }
+  }
+
+  // No filters: prefer search; if it returns no hits, fallback to attorneys
+  const fromSearch = await tryFetch(searchU)
+  if (fromSearch && fromSearch.hits.length > 0) {
+    return fromSearch
+  }
+
+  const fromAttorneys = await tryFetch(attorneysU)
+  return fromAttorneys ?? { hits: [], total: 0, limit: limitVal, offset: offsetVal }
 }
 
 export type Facets = Record<string, Record<string, number>>
