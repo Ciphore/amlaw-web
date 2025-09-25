@@ -29,21 +29,18 @@ type Attorney = {
   headshot_url?: string
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
-
-function absoluteBase(): string {
-  if (BASE.startsWith('http')) return BASE
+function sameOriginApiBase(): string {
   const site =
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.SITE_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  return `${site}${BASE}`
+  return `${site}/api`
 }
 
 export default async function AttorneyPage({ params }: { params: Promise<{ id: string }> }) {
   const p = await params
-  // Use absolute API base to ensure server-side fetch works in all environments
-  const r = await fetch(`${absoluteBase()}/attorney/${encodeURIComponent(p.id)}`, { cache: 'no-store' })
+  // Always use same-origin absolute /api to avoid env/base mismatches
+  const r = await fetch(`${sameOriginApiBase()}/attorney/${encodeURIComponent(p.id)}`, { cache: 'no-store' })
   if (!r.ok) return <div className="p-6">Not found</div>
   const data = await r.json()
   const a: Attorney | undefined = (data && typeof data === 'object' && 'attorney_id' in data) ? (data as Attorney) : undefined
