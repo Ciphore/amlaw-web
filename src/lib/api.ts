@@ -79,21 +79,21 @@ export async function searchAttorneys(params: {
   attorneysU.searchParams.set('limit', String(limitVal))
   attorneysU.searchParams.set('offset', String(offsetVal))
 
-  // Helper to normalize responses
+  // Helper to normalize responses (supports arrays, {hits}, and {items, estimatedTotal})
   function normalize(json: unknown): SearchResponse {
-    type Raw =
-      | SearchResponse
-      | Attorney[]
-      | { hits?: Attorney[]; items?: Attorney[]; total?: number; estimatedTotal?: number; limit?: number; offset?: number }
-    const raw = json as Raw
-    const hits: Attorney[] = Array.isArray(raw)
-      ? raw
-      : (Array.isArray(raw?.hits) ? raw.hits! : (Array.isArray(raw?.items) ? raw.items! : []))
-    const total: number = !Array.isArray(raw)
-      ? (typeof raw?.estimatedTotal === 'number' ? raw.estimatedTotal : (typeof raw?.total === 'number' ? raw.total : hits.length))
+    if (Array.isArray(json)) {
+      const hits = json as Attorney[]
+      return { hits, total: hits.length, limit: limitVal, offset: offsetVal }
+    }
+    const obj = (json && typeof json === 'object') ? (json as Record<string, unknown>) : null
+    const hits = obj
+      ? (Array.isArray(obj.hits) ? obj.hits as Attorney[] : (Array.isArray(obj.items) ? obj.items as Attorney[] : []))
+      : []
+    const total = obj
+      ? (typeof obj.estimatedTotal === 'number' ? obj.estimatedTotal as number : (typeof obj.total === 'number' ? obj.total as number : hits.length))
       : hits.length
-    const limit: number = !Array.isArray(raw) && typeof raw?.limit === 'number' ? raw.limit : limitVal
-    const offset: number = !Array.isArray(raw) && typeof raw?.offset === 'number' ? raw.offset : offsetVal
+    const limit = obj && typeof obj.limit === 'number' ? obj.limit as number : limitVal
+    const offset = obj && typeof obj.offset === 'number' ? obj.offset as number : offsetVal
     return { hits, total, limit, offset }
   }
 
