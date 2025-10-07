@@ -87,9 +87,21 @@ export default async function Home({
                 )}
                 <div>
                   <div className="font-semibold">
-                    <a href={`/attorney/${a.attorney_id}`} className="hover:underline">
-                      {a.full_name}
-                    </a>
+                    {(() => {
+                      const rec = a as unknown as Record<string, unknown>
+                      const linkId = a.attorney_id
+                        || (typeof rec.id === 'string' ? (rec.id as string) : undefined)
+                        || (typeof rec.code === 'string' ? (rec.code as string) : undefined)
+                        || (typeof rec.uuid === 'string' ? (rec.uuid as string) : undefined)
+                      const href = linkId
+                        ? `/attorney/${encodeURIComponent(linkId)}?name=${encodeURIComponent(a.full_name)}`
+                        : `/search?query=${encodeURIComponent(a.full_name)}`
+                      return (
+                        <a href={href} className="hover:underline">
+                          {a.full_name}
+                        </a>
+                      )
+                    })()}
                   </div>
                   <div className="text-sm text-gray-600">
                     {a.title} @ {a.firm_name} — {a.office_city} • JD {a.jd_year ?? '—'}

@@ -137,6 +137,15 @@ async function searchExactById(base: string, id: string, params: Record<string, 
 export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
+    const name = (() => {
+      try {
+        const u = new URL((_req as unknown as { url: string }).url)
+        const v = u.searchParams.get('name')
+        return v && v.trim() !== '' ? v : null
+      } catch {
+        return null
+      }
+    })()
     const upstream = process.env.UPSTREAM_API_BASE_URL || 'https://api.viewport.software'
 
     // 0) Prefer direct path if the upstream supports /attorneys/:id
@@ -151,7 +160,32 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
       return new Response(JSON.stringify(byList), { status: 200, headers: { 'content-type': 'application/json' } })
     }
 
-    // 2) Fallback to text query if above not available
+    // 2) If a name was provided, try searching by full name
+    if (name) {
+      const u = new URL('/v1/search/attorneys', upstream)
+      u.searchParams.set('q', name)
+      u.searchParams.set('limit', '25')
+      const r = await fetch(u, { cache: 'no-store' })
+      if (r.ok) {
+        try {
+          const json = (await r.json()) as (Attorney[] | { items?: Attorney[]; hits?: Attorney[] })
+          const list = Array.isArray(json) ? json : (json.items || json.hits || [])
+          const match = list.find((raw) => {
+            const rec = raw as Record<string, unknown>
+            const full = typeof rec.full_name === 'string' ? rec.full_name : typeof rec.name === 'string' ? rec.name : undefined
+            return typeof full === 'string' && full.trim().toLowerCase() === name.trim().toLowerCase()
+          })
+          const norm = normalizeAttorney(match as unknown)
+          if (norm) {
+            return new Response(JSON.stringify(norm), { status: 200, headers: { 'content-type': 'application/json' } })
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // 3) Fallback to text query if above not available
     const byQuery = await searchExactById(upstream, id, { query: id, limit: '50' })
     if (byQuery) {
       return new Response(JSON.stringify(byQuery), { status: 200, headers: { 'content-type': 'application/json' } })
