@@ -84,6 +84,33 @@ async function fetchByDirectPath(base: string, id: string): Promise<Attorney | n
   }
 }
 
+// Try list endpoint with various common id field names
+async function fetchByListFilters(base: string, id: string): Promise<Attorney | null> {
+  const keys = ['attorney_id', 'id', 'code', 'uuid']
+  for (const k of keys) {
+    const u = new URL('/v1/attorneys', base)
+    u.searchParams.set(k, id)
+    u.searchParams.set('limit', '1')
+    u.searchParams.set('offset', '0')
+    const r = await fetch(u, { cache: 'no-store' })
+    if (!r.ok) continue
+    try {
+      const json = (await r.json()) as unknown
+      const arr = Array.isArray(json)
+        ? (json as unknown[])
+        : (typeof json === 'object' && json && Array.isArray((json as Record<string, unknown>).items))
+          ? ((json as Record<string, unknown>).items as unknown[])
+          : []
+      const first = arr[0]
+      const norm = normalizeAttorney(first)
+      if (norm) return norm
+    } catch {
+      // ignore and try next key
+    }
+  }
+  return null
+}
+
 async function searchExactById(base: string, id: string, params: Record<string, string>): Promise<Attorney | null> {
   const u = new URL('/v1/search/attorneys', base)
   // Map provided params to upstream; always include q=id for robustness
@@ -118,7 +145,13 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
       return new Response(JSON.stringify(byPath), { status: 200, headers: { 'content-type': 'application/json' } })
     }
 
-    // Fallback to text query if direct path not available
+    // 1) Try list endpoint filters with common id field names
+    const byList = await fetchByListFilters(upstream, id)
+    if (byList) {
+      return new Response(JSON.stringify(byList), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+
+    // 2) Fallback to text query if above not available
     const byQuery = await searchExactById(upstream, id, { query: id, limit: '50' })
     if (byQuery) {
       return new Response(JSON.stringify(byQuery), { status: 200, headers: { 'content-type': 'application/json' } })
