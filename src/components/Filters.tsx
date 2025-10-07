@@ -11,7 +11,8 @@ type Facets = {
   jd_year?: Record<string, number>
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
+// Always use same-origin API proxy to avoid browser CORS when deployed
+const BASE = '/api'
 
 export default function Filters() {
   const [facets, setFacets] = useState<Facets | null>(null)
