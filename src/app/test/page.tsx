@@ -18,12 +18,12 @@ export default function TestPage() {
     const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
     console.log('API Base (client):', BASE)
 
-    fetch(`${BASE}/search?query=private%20equity&city=New%20York&limit=5`, { cache: 'no-store' })
+    fetch(`${BASE}/search?q=private%20equity&office_city=New%20York&limit=5`, { cache: 'no-store' })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
-      .then((json) => setData(Array.isArray(json) ? json : json.hits ?? []))
+      .then((json) => setData(Array.isArray(json) ? json : (json.items ?? json.hits ?? [])))
       .catch((e) => setErr(e.message || 'fetch_failed'))
   }, [])
 

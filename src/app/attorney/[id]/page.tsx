@@ -61,6 +61,8 @@ export default async function AttorneyPage({ params }: { params: { id: string } 
 
   if (!a) return <div className="p-6">Not found</div>
 
+  const titleFirm = [a.title, a.firm_name].filter(Boolean).join(' @ ')
+
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-4">
       <div className="flex gap-4">
@@ -71,7 +73,7 @@ export default async function AttorneyPage({ params }: { params: { id: string } 
         )}
         <div>
           <h1 className="text-2xl font-semibold">{a.full_name}</h1>
-          <div className="text-gray-600">{a.title} @ {a.firm_name}</div>
+          <div className="text-gray-600">{titleFirm}</div>
           <div className="text-gray-600">{a.office_city}{a.office_country ? `, ${a.office_country}` : ''} • JD {a.jd_year ?? '—'}</div>
         </div>
       </div>

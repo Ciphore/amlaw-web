@@ -58,25 +58,40 @@ export async function searchAttorneys(params: {
     params.jd_min !== undefined || params.jd_max !== undefined
   )
 
-  // Build URLs for search and attorneys
+  // Build URLs for search and attorneys (proxied to upstream /v1)
   const searchU = new URL(`${base}/search`, 'http://dummy')
   const attorneysU = new URL(`${base}/attorneys`, 'http://dummy')
 
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') {
-      searchU.searchParams.set(k, String(v))
-      attorneysU.searchParams.set(k, String(v))
-    }
-  })
-  // Ask for meta on search to normalize shapes
-  searchU.searchParams.set('meta', '1')
+  // Map local params to upstream names for search
+  const q = params.query?.trim() ? params.query.trim() : undefined
+  const office_city = params.city?.trim() ? params.city.trim() : undefined
+  const practice = params.practice?.trim() ? params.practice.trim() : undefined
+  const firm_id = params.firm?.trim() ? params.firm.trim() : undefined
+
+  if (q) searchU.searchParams.set('q', q)
+  if (office_city) searchU.searchParams.set('office_city', office_city)
+  if (practice) searchU.searchParams.set('practice', practice)
+  if (firm_id) searchU.searchParams.set('firm_id', firm_id)
+  searchU.searchParams.set('limit', String(limitVal))
+  searchU.searchParams.set('offset', String(offsetVal))
+
+  // For the fallback list endpoint, only pass pagination
+  attorneysU.searchParams.set('limit', String(limitVal))
+  attorneysU.searchParams.set('offset', String(offsetVal))
 
   // Helper to normalize responses
   function normalize(json: unknown): SearchResponse {
-    type Raw = SearchResponse | Attorney[] | { hits?: Attorney[]; total?: number; limit?: number; offset?: number }
+    type Raw =
+      | SearchResponse
+      | Attorney[]
+      | { hits?: Attorney[]; items?: Attorney[]; total?: number; estimatedTotal?: number; limit?: number; offset?: number }
     const raw = json as Raw
-    const hits: Attorney[] = Array.isArray(raw) ? raw : (Array.isArray(raw?.hits) ? raw.hits! : [])
-    const total: number = !Array.isArray(raw) && typeof raw?.total === 'number' ? raw.total : hits.length
+    const hits: Attorney[] = Array.isArray(raw)
+      ? raw
+      : (Array.isArray(raw?.hits) ? raw.hits! : (Array.isArray(raw?.items) ? raw.items! : []))
+    const total: number = !Array.isArray(raw)
+      ? (typeof raw?.estimatedTotal === 'number' ? raw.estimatedTotal : (typeof raw?.total === 'number' ? raw.total : hits.length))
+      : hits.length
     const limit: number = !Array.isArray(raw) && typeof raw?.limit === 'number' ? raw.limit : limitVal
     const offset: number = !Array.isArray(raw) && typeof raw?.offset === 'number' ? raw.offset : offsetVal
     return { hits, total, limit, offset }

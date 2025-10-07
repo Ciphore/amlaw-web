@@ -2,7 +2,7 @@ export async function GET(req: Request) {
   try {
     const upstream = process.env.UPSTREAM_API_BASE_URL || 'https://api.viewport.software'
     const incoming = new URL(req.url)
-    const target = new URL('/search', upstream)
+    const target = new URL('/v1/search/attorneys', upstream)
     target.search = incoming.search
 
     const r = await fetch(target, { cache: 'no-store' })
