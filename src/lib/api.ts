@@ -30,8 +30,10 @@ export type SearchResponse = {
   offset: number
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!
-const API_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX || '/v1'
+// Default to upstream if env is missing to avoid Invalid URL
+const API_URL = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim()) || 'https://api.viewport.software'
+const RAW_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX || '/v1'
+const API_PREFIX = RAW_PREFIX.startsWith('/') ? RAW_PREFIX : `/${RAW_PREFIX}`
 
 export async function searchAttorneys(params: SearchParams = {}): Promise<SearchResponse> {
   const url = new URL(`${API_URL}${API_PREFIX}/search/attorneys`)
