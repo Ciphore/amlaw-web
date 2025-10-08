@@ -9,7 +9,7 @@ export default async function SearchPage({
   const page = typeof searchParams.page === 'string' ? Number(searchParams.page) : 1
   const offset = (page - 1) * limit
 
-  const data: SearchResponse = await searchAttorneys({ query, city, limit, offset })
+  const data: SearchResponse = await searchAttorneys({ q: query, office_city: city, limit, offset })
   const facets = await fetchFacets()
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.limit))

@@ -32,7 +32,7 @@ export default async function Home({
     query: pickString(sp.query),
     city: pickString(sp.city),
     title: pickString(sp.title),
-    firm: pickString(sp.firm),
+    firm_id: pickString(sp.firm_id),
     practice: pickString(sp.practice),
     jd_min: pickString(sp.jd_min),
     jd_max: pickString(sp.jd_max),
@@ -44,20 +44,17 @@ export default async function Home({
 
   // Use shared helper which normalizes shapes and guards against non-JSON
   const data: SearchResponse = await searchAttorneys({
-    query: pickString(sp.query),
-    city: pickString(sp.city),
-    title: pickString(sp.title),
-    firm: pickString(sp.firm),
+    q: pickString(sp.query),
+    office_city: pickString(sp.city),
     practice: pickString(sp.practice),
-    jd_min: pickString(sp.jd_min) ? Number(pickString(sp.jd_min)) : undefined,
-    jd_max: pickString(sp.jd_max) ? Number(pickString(sp.jd_max)) : undefined,
+    firm_id: pickString(sp.firm_id),
     limit,
     offset,
   })
 
   function buildHref(nextPage: number) {
     const usp = new URLSearchParams()
-    const keys = ['query','city','title','firm','practice','jd_min','jd_max','sort'] as const
+    const keys = ['query','city','title','firm_id','practice','jd_min','jd_max','sort'] as const
     for (const k of keys) {
       const val = pickString(sp[k])
       if (val) usp.set(k, val)

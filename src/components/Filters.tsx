@@ -94,13 +94,13 @@ export default function Filters() {
         </select>
       </div>
 
-      {/* Firm */}
+      {/* Firm (uses firm_id in query; displays firm_name facets) */}
       <div>
         <label className="block text-sm font-medium">Firm</label>
         <select
           className="border rounded w-full px-2 py-1"
-          value={params.get('firm') || ''}
-          onChange={(e) => set('firm', e.target.value || undefined)}
+          value={params.get('firm_id') || ''}
+          onChange={(e) => set('firm_id', e.target.value || undefined)}
         >
           <option value="">All</option>
           {Object.entries(facets.firm_name || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k, v]) => (

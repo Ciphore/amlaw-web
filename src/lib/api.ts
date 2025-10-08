@@ -1,14 +1,26 @@
-import { headers } from 'next/headers'
-
 export type Attorney = {
   attorney_id: string
   full_name: string
-  title?: string
-  practice_areas?: string[]
-  firm_name?: string
+  first_name: string
+  last_name: string
+  firm_id: string
+  firm_name: string
+  office_city: string
+  office_country: string
+  practice_areas: string[]
+  title: string
+  bio: string
+  jd_year: number
+  headshot_url: string | null
+}
+
+export type SearchParams = {
+  q?: string
+  limit?: number
+  offset?: number
+  firm_id?: string
   office_city?: string
-  headshot_url?: string | null
-  jd_year?: number | null
+  practice?: string
 }
 
 export type SearchResponse = {
@@ -18,127 +30,44 @@ export type SearchResponse = {
   offset: number
 }
 
-const PUBLIC_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").trim()
+const API_URL = process.env.NEXT_PUBLIC_API_URL!
+const API_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX || '/v1'
 
-async function resolveBase(): Promise<string> {
-  if (PUBLIC_BASE.startsWith('http://') || PUBLIC_BASE.startsWith('https://')) return PUBLIC_BASE
-  try {
-    const h = await headers()
-    const forwardedHost = h.get('x-forwarded-host') || undefined
-    const host = forwardedHost || h.get('host') || process.env.VERCEL_URL || process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || 'localhost:3000'
-    const protoHeader = h.get('x-forwarded-proto') || undefined
-    const proto = protoHeader || (String(host).includes('localhost') ? 'http' : 'https')
-    const site = host.startsWith('http') ? host : `${proto}://${host}`
-    return `${site}${PUBLIC_BASE}`
-  } catch {
-    const fallbackSite = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    return `${fallbackSite}${PUBLIC_BASE}`
-  }
-}
+export async function searchAttorneys(params: SearchParams = {}): Promise<SearchResponse> {
+  const url = new URL(`${API_URL}${API_PREFIX}/search/attorneys`)
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v))
+  })
 
-export async function searchAttorneys(params: {
-  query?: string
-  city?: string
-  title?: string
-  firm?: string
-  practice?: string
-  jd_min?: number
-  jd_max?: number
-  limit?: number
-  offset?: number
-} = {}): Promise<SearchResponse> {
-  const base = await resolveBase()
+  const res = await fetch(url.toString(), { cache: 'no-store' })
+  if (!res.ok) throw new Error(`search failed: ${res.status} ${res.statusText}`)
 
-  const limitVal = typeof params.limit === 'number' ? params.limit : 20
-  const offsetVal = typeof params.offset === 'number' ? params.offset : 0
-
-  const hasFilters = Boolean(
-    (params.query && params.query.trim() !== '') ||
-    params.city || params.title || params.firm || params.practice ||
-    params.jd_min !== undefined || params.jd_max !== undefined
-  )
-
-  // Build URLs for search and attorneys (proxied to upstream /v1)
-  const searchU = new URL(`${base}/search`, 'http://dummy')
-  const attorneysU = new URL(`${base}/attorneys`, 'http://dummy')
-
-  // Map local params to upstream names for search
-  const q = params.query?.trim() ? params.query.trim() : undefined
-  const office_city = params.city?.trim() ? params.city.trim() : undefined
-  const practice = params.practice?.trim() ? params.practice.trim() : undefined
-  const firm_id = params.firm?.trim() ? params.firm.trim() : undefined
-
-  if (q) searchU.searchParams.set('q', q)
-  if (office_city) searchU.searchParams.set('office_city', office_city)
-  if (practice) searchU.searchParams.set('practice', practice)
-  if (firm_id) searchU.searchParams.set('firm_id', firm_id)
-  searchU.searchParams.set('limit', String(limitVal))
-  searchU.searchParams.set('offset', String(offsetVal))
-
-  // For the fallback list endpoint, only pass pagination
-  attorneysU.searchParams.set('limit', String(limitVal))
-  attorneysU.searchParams.set('offset', String(offsetVal))
-
-  // Helper to normalize responses (supports arrays, {hits}, and {items, estimatedTotal})
-  function normalize(json: unknown): SearchResponse {
-    if (Array.isArray(json)) {
-      const hits = json as Attorney[]
-      return { hits, total: hits.length, limit: limitVal, offset: offsetVal }
-    }
-    const obj = (json && typeof json === 'object') ? (json as Record<string, unknown>) : null
-    const hits = obj
-      ? (Array.isArray(obj.hits) ? obj.hits as Attorney[] : (Array.isArray(obj.items) ? obj.items as Attorney[] : []))
-      : []
-    const total = obj
-      ? (typeof obj.estimatedTotal === 'number' ? obj.estimatedTotal as number : (typeof obj.total === 'number' ? obj.total as number : hits.length))
-      : hits.length
-    const limit = obj && typeof obj.limit === 'number' ? obj.limit as number : limitVal
-    const offset = obj && typeof obj.offset === 'number' ? obj.offset as number : offsetVal
-    return { hits, total, limit, offset }
+  const data = await res.json() as {
+    items?: Attorney[]
+    estimatedTotal?: number
+    hits?: Attorney[]
+    total?: number
   }
 
-  // First try search when filters are present; otherwise try search, then fall back to attorneys
-  const tryFetch = async (url: URL): Promise<SearchResponse | null> => {
-    let r: Response
-    try {
-      r = await fetch(`${url.origin}${url.pathname}?${url.searchParams.toString()}`, { cache: 'no-store' })
-    } catch {
-      return null
-    }
-    if (!r.ok) return null
-    const ct = r.headers.get('content-type') || 'application/json'
-    if (!ct.includes('json')) return null
-    try {
-      const json = await r.json()
-      const norm = normalize(json)
-      return norm
-    } catch {
-      return null
-    }
-  }
+  const items = data.items ?? data.hits ?? []
+  const estimatedTotal = data.estimatedTotal ?? data.total ?? items.length
 
-  if (hasFilters) {
-    const fromSearch = await tryFetch(searchU)
-    return fromSearch ?? { hits: [], total: 0, limit: limitVal, offset: offsetVal }
+  return {
+    hits: items,
+    total: estimatedTotal,
+    limit: Number(url.searchParams.get('limit') || 20),
+    offset: Number(url.searchParams.get('offset') || 0),
   }
-
-  // No filters: prefer search; if it returns no hits, fallback to attorneys
-  const fromSearch = await tryFetch(searchU)
-  if (fromSearch && fromSearch.hits.length > 0) {
-    return fromSearch
-  }
-
-  const fromAttorneys = await tryFetch(attorneysU)
-  return fromAttorneys ?? { hits: [], total: 0, limit: limitVal, offset: offsetVal }
 }
 
 export type Facets = Record<string, Record<string, number>>
 
 export async function fetchFacets(): Promise<Facets> {
-  const base = await resolveBase()
+  // Fetch via Next proxy to avoid CORS in browser; mirrors /v1/search/facets
+  const base = (typeof window === 'undefined') ? process.env.NEXT_PUBLIC_SITE_URL || '' : ''
   let r: Response
   try {
-    r = await fetch(`${base}/search/facets`, { cache: 'no-store' })
+    r = await fetch(`${base}/api/search/facets`, { cache: 'no-store' })
   } catch {
     return {}
   }
