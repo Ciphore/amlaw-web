@@ -44,7 +44,11 @@ function LoginContent() {
     try {
       const supabase = getSupabaseClient()
       if (!supabase) throw new Error('Supabase env vars missing')
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
+      const emailRedirectTo = `${location.origin}/login?redirect=${encodeURIComponent(redirect)}`
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true, emailRedirectTo },
+      })
       if (error) throw error
       setMessage('Check your email for a magic link to sign in.')
     } catch (e) {
