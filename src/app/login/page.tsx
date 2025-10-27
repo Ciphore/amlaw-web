@@ -44,7 +44,8 @@ function LoginContent() {
     try {
       const supabase = getSupabaseClient()
       if (!supabase) throw new Error('Supabase env vars missing')
-      const emailRedirectTo = `${location.origin}/login?redirect=${encodeURIComponent(redirect)}`
+      const origin = process.env.NEXT_PUBLIC_SITE_URL || location.origin
+      const emailRedirectTo = `${origin}/login?redirect=${encodeURIComponent(redirect)}`
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { shouldCreateUser: true, emailRedirectTo },
