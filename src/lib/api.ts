@@ -30,55 +30,81 @@ export type SearchResponse = {
   offset: number
 }
 
-// Enforce absolute API base; fall back to upstream if provided value is relative
-const envApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim()
-const API_URL = /^https?:\/\//.test(envApiUrl) ? envApiUrl : 'https://api.viewport.software'
-const RAW_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX || '/v1'
-const API_PREFIX = RAW_PREFIX.startsWith('/') ? RAW_PREFIX : `/${RAW_PREFIX}`
-
 export async function searchAttorneys(params: SearchParams = {}): Promise<SearchResponse> {
-  const url = new URL(`${API_URL}${API_PREFIX}/search/attorneys`)
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v))
-  })
+  const limit = typeof params.limit === 'number' ? params.limit : 20
+  const offset = typeof params.offset === 'number' ? params.offset : 0
+  const q = (params.q || '').trim()
 
-  let res: Response
-  try {
-    res = await fetch(url.toString(), { cache: 'no-store' })
-  } catch (e) {
-    // Network failure: return empty results to avoid 500s
-    return { hits: [], total: 0, limit: Number(url.searchParams.get('limit') || 20), offset: Number(url.searchParams.get('offset') || 0) }
+  const base = (typeof window === 'undefined') ? (process.env.NEXT_PUBLIC_SITE_URL || '') : ''
+
+  const makeEmpty = (): SearchResponse => ({ hits: [], total: 0, limit, offset })
+
+  if (!q) {
+    const usp = new URLSearchParams()
+    usp.set('limit', String(limit))
+    usp.set('offset', String(offset))
+    if (params.office_city) usp.set('office_city', params.office_city)
+    if (params.firm_id) usp.set('firm_id', params.firm_id)
+    if (params.practice) usp.set('practice', params.practice)
+    const uStr = `${base || ''}/api/attorneys?${usp.toString()}`
+
+    let r: Response
+    try {
+      r = await fetch(uStr, { cache: 'no-store' })
+    } catch {
+      return makeEmpty()
+    }
+    if (!r.ok) return makeEmpty()
+
+    const ct = r.headers.get('content-type') || 'application/json'
+    if (!ct.includes('json')) return makeEmpty()
+
+    let json: unknown
+    try {
+      json = await r.json()
+    } catch {
+      return makeEmpty()
+    }
+
+    const obj = (json || {}) as { items?: Attorney[]; hits?: Attorney[]; estimatedTotal?: number; total?: number }
+    const items = obj.items ?? obj.hits ?? (Array.isArray(json) ? (json as Attorney[]) : [])
+    const estimatedTotal = obj.estimatedTotal ?? obj.total ?? items.length
+
+    return { hits: items, total: estimatedTotal, limit, offset }
   }
 
-  // If upstream returns 404 or other non-OK, degrade gracefully
-  if (!res.ok) {
-    return { hits: [], total: 0, limit: Number(url.searchParams.get('limit') || 20), offset: Number(url.searchParams.get('offset') || 0) }
-  }
+  const usp = new URLSearchParams()
+  usp.set('q', q)
+  usp.set('limit', String(limit))
+  usp.set('offset', String(offset))
+  if (params.office_city) usp.set('office_city', params.office_city)
+  if (params.firm_id) usp.set('firm_id', params.firm_id)
+  if (params.practice) usp.set('practice', params.practice)
+  const uStr = `${base || ''}/api/search?${usp.toString()}`
 
-  // Attempt JSON parse, fallback if body isn’t JSON
-  let data: unknown
+  let r: Response
   try {
-    data = await res.json()
+    r = await fetch(uStr, { cache: 'no-store' })
   } catch {
-    return { hits: [], total: 0, limit: Number(url.searchParams.get('limit') || 20), offset: Number(url.searchParams.get('offset') || 0) }
+    return makeEmpty()
+  }
+  if (!r.ok) return makeEmpty()
+
+  const ct = r.headers.get('content-type') || 'application/json'
+  if (!ct.includes('json')) return makeEmpty()
+
+  let json: unknown
+  try {
+    json = await r.json()
+  } catch {
+    return makeEmpty()
   }
 
-  const obj = (data || {}) as {
-    items?: Attorney[]
-    estimatedTotal?: number
-    hits?: Attorney[]
-    total?: number
-  }
-
+  const obj = (json || {}) as { items?: Attorney[]; hits?: Attorney[]; estimatedTotal?: number; total?: number }
   const items = obj.items ?? obj.hits ?? []
   const estimatedTotal = obj.estimatedTotal ?? obj.total ?? items.length
 
-  return {
-    hits: items,
-    total: estimatedTotal,
-    limit: Number(url.searchParams.get('limit') || 20),
-    offset: Number(url.searchParams.get('offset') || 0),
-  }
+  return { hits: items, total: estimatedTotal, limit, offset }
 }
 
 export type Facets = Record<string, Record<string, number>>
