@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 
-export default function LoginPage() {
+function LoginContent() {
   const sp = useSearchParams()
   const router = useRouter()
   const redirect = sp.get('redirect') || '/'
@@ -29,8 +29,9 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
       router.push(redirect)
-    } catch (e: any) {
-      setError(e?.message || 'Login failed')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Login failed'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -46,8 +47,9 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
       if (error) throw error
       setMessage('Check your email for a magic link to sign in.')
-    } catch (e: any) {
-      setError(e?.message || 'Failed to send magic link')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to send magic link'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -62,8 +64,9 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       setMessage('Signed out.')
-    } catch (e: any) {
-      setError(e?.message || 'Sign out failed')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Sign out failed'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -103,5 +106,13 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </main>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   )
 }

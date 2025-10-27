@@ -32,7 +32,6 @@ export default function AuthNav() {
       setAuthed(Boolean(session) || hasCookieAuth())
     })
     return () => {
-      // @ts-expect-error - supabase types can vary; guard unsubscribe
       sub?.subscription?.unsubscribe?.()
     }
   }, [])

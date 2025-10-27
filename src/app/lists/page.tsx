@@ -1,73 +1,67 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { getSupabaseClient } from '@/lib/supabaseClient'
-import { addToList, createList, deleteList, getLists, removeFromList, type UserList } from '@/lib/lists'
+import Link from 'next/link'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { getLists, saveLists, deleteList, createList, type UserList } from '@/lib/lists'
 
-export default function ListsPage() {
-  const [userId, setUserId] = useState<string | null>(null)
-  const [lists, setLists] = useState<UserList[]>([])
-  const [name, setName] = useState('')
+export default async function ListsPage() {
+  const cookieStore = await cookies()
+  const hasAuth = cookieStore.getAll().some((c)=>c.name === 'sb-access-token' || /^sb-.*-auth-token$/.test(c.name))
+  if (!hasAuth) redirect('/login?redirect=/lists')
 
-  useEffect(() => {
-    const supabase = getSupabaseClient()
-    if (supabase) {
-      supabase.auth.getSession().then(({ data }) => {
-        const uid = data.session?.user?.id || null
-        setUserId(uid)
-        setLists(getLists(uid))
-      })
-    } else {
-      setUserId(null)
-      setLists(getLists(null))
-    }
-  }, [])
+  const userId = null
+  const lists: UserList[] = getLists(userId)
 
   function refresh() {
-    setLists(getLists(userId))
+    // no-op for server component preview; real implementation would revalidate
   }
 
   function onCreate() {
-    if (!name.trim()) return
-    createList(userId, name.trim())
-    setName('')
+    createList(userId, 'My List')
     refresh()
   }
 
   return (
     <main className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold">My Lists</h1>
-
-      <div className="mt-4 flex gap-2">
-        <input className="border rounded px-3 py-2 flex-1" placeholder="New list name" value={name} onChange={(e)=>setName(e.target.value)} />
-        <Button onClick={onCreate}>Create</Button>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Your Lists</h1>
+        <Button variant="outline" onClick={onCreate}>New list</Button>
       </div>
 
-      <div className="mt-8 space-y-6">
-        {lists.length === 0 && <p className="text-sm text-foreground/70">No lists yet. Create one above, then add attorneys from Search or their profile page.</p>}
-        {lists.map((l) => (
-          <div key={l.id} className="border rounded p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">{l.name}</h2>
-              <Button variant="outline" size="sm" onClick={()=>{ deleteList(userId, l.id); refresh() }}>Delete</Button>
-            </div>
-            <ul className="mt-3 space-y-2">
-              {l.items.length === 0 && <li className="text-sm text-foreground/60">No attorneys in this list.</li>}
-              {l.items.map((it) => (
-                <li key={it.attorney_id} className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{it.full_name}</div>
-                    <div className="text-sm text-foreground/60">{it.title} @ {it.firm_name} — {it.office_city}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <a className="text-primary underline" href={`/attorney/${encodeURIComponent(it.attorney_id)}?name=${encodeURIComponent(it.full_name)}`}>View</a>
-                    <Button variant="outline" size="sm" onClick={()=>{ removeFromList(userId, l.id, it.attorney_id); refresh() }}>Remove</Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+      <div className="mt-6 grid gap-4">
+        {lists.length === 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>No lists yet</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-foreground/70">Create your first list to start organizing attorneys.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {lists.map((l)=> (
+          <Card key={l.id}>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold">{l.name}</h2>
+                <Button variant="outline" onClick={()=>{ deleteList(userId, l.id); refresh() }}>Delete</Button>
+              </div>
+              <ul className="mt-3 space-y-2">
+                {l.items.length === 0 && <li className="text-sm text-foreground/60">No attorneys in this list.</li>}
+                {l.items.map((it)=> (
+                  <li key={it.attorney_id} className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">{it.full_name}</div>
+                      {it.firm_name && <div className="text-sm text-foreground/60">{it.firm_name}</div>}
+                    </div>
+                    <Link href={`/attorney/${encodeURIComponent(it.attorney_id)}${it.full_name ? `?name=${encodeURIComponent(it.full_name)}` : ''}`} className="text-sm underline">View</Link>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </main>

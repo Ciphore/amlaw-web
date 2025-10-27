@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 
 export async function middleware(req: NextRequest) {
   // Only protect specific routes; see matcher below.
-  const res = NextResponse.next()
+  let supabaseRes = NextResponse.next({ request: req })
 
   const pathname = req.nextUrl.pathname
   const isLoginRoute = pathname.startsWith('/login')
@@ -19,24 +19,26 @@ export async function middleware(req: NextRequest) {
       loginUrl.searchParams.set('redirect', req.nextUrl.pathname + req.nextUrl.search)
       return NextResponse.redirect(loginUrl)
     }
-    return res
+    return supabaseRes
   }
 
-  const supabase = createServerClient({
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    cookies: {
-      get(name: string) {
-        return req.cookies.get(name)?.value
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          // Ensure cookies are applied to both the request and the response
+          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
+          supabaseRes = NextResponse.next({ request: req })
+          cookiesToSet.forEach(({ name, value, options }) => supabaseRes.cookies.set(name, value, options))
+        },
       },
-      set(name: string, value: string, options: any) {
-        res.cookies.set(name, value, options)
-      },
-      remove(name: string, options: any) {
-        res.cookies.set(name, '', { ...options, maxAge: 0 })
-      },
-    },
-  })
+    }
+  )
 
   const { data: { session } } = await supabase.auth.getSession()
 
@@ -47,7 +49,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  return res
+  return supabaseRes
 }
 
 export const config = {

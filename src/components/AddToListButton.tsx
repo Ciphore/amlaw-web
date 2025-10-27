@@ -54,7 +54,7 @@ export default function AddToListButton({ item }: { item: ListItem }) {
 
   return (
     <div className="inline-flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={onAdd}>Add to list</Button>
+      <Button variant="outline" onClick={onAdd}>Add to list</Button>
     </div>
   )
 }
