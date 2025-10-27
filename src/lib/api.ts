@@ -83,5 +83,16 @@ export async function fetchFacets(): Promise<Facets> {
     return {}
   }
   const raw = (json && typeof json === 'object') ? (json as Record<string, unknown>).facets ?? json : {}
+  // Gracefully handle array-based facet metadata (searchable/filterable attributes)
+  if (raw && typeof raw === 'object') {
+    const maybeSA = (raw as Record<string, unknown>).searchableAttributes
+    const maybeFA = (raw as Record<string, unknown>).filterableAttributes
+    if (Array.isArray(maybeSA) || Array.isArray(maybeFA)) {
+      const known = ['practice_areas','office_city','title','firm_name','jd_year']
+      const out: Facets = {}
+      for (const k of known) out[k] = {}
+      return out
+    }
+  }
   return (raw && typeof raw === 'object') ? raw as Facets : {}
 }

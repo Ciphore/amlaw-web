@@ -3,8 +3,8 @@ import { fetchFacets, searchAttorneys, type SearchResponse } from "@/lib/api"
 export default async function SearchPage({
   searchParams,
 }: { searchParams: Record<string, string | string[] | undefined> }) {
-  const query = typeof searchParams.query === "string" ? searchParams.query : ""
-  const city = typeof searchParams.city === "string" ? searchParams.city : undefined
+  const query = typeof searchParams.q === "string" ? searchParams.q : ""
+  const city = typeof searchParams.office_city === "string" ? searchParams.office_city : undefined
   const limit = typeof searchParams.limit === 'string' ? Number(searchParams.limit) : 20
   const page = typeof searchParams.page === 'string' ? Number(searchParams.page) : 1
   const offset = (page - 1) * limit
@@ -16,8 +16,8 @@ export default async function SearchPage({
 
   const buildHref = (nextPage: number) => {
     const usp = new URLSearchParams()
-    if (query) usp.set('query', query)
-    if (city) usp.set('city', city)
+    if (query) usp.set('q', query)
+    if (city) usp.set('office_city', city)
     usp.set('page', String(nextPage))
     usp.set('limit', String(limit))
     return `?${usp.toString()}`
@@ -28,13 +28,13 @@ export default async function SearchPage({
       <h1>Attorney Search</h1>
       <form method="get" style={{ margin: "16px 0" }}>
         <input
-          name="query"
+          name="q"
           defaultValue={query}
           placeholder="Search e.g. private equity"
           style={{ padding: 8, width: 320 }}
         />
         <input
-          name="city"
+          name="office_city"
           defaultValue={city}
           placeholder="City filter"
           style={{ padding: 8, marginLeft: 8 }}

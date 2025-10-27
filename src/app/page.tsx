@@ -29,13 +29,11 @@ export default async function Home({
   const sort = pickString(sp.sort) || '' // e.g. 'jd_year:desc' or 'last_name:asc'
 
   const qs = getQS({
-    query: pickString(sp.query),
-    city: pickString(sp.city),
-    title: pickString(sp.title),
+    // align with backend: q, office_city, practice, firm_id
+    q: pickString(sp.query),
+    office_city: pickString(sp.city),
     firm_id: pickString(sp.firm_id),
     practice: pickString(sp.practice),
-    jd_min: pickString(sp.jd_min),
-    jd_max: pickString(sp.jd_max),
     limit: String(limit),
     offset: String(offset),
     sort,
@@ -54,9 +52,12 @@ export default async function Home({
 
   function buildHref(nextPage: number) {
     const usp = new URLSearchParams()
-    const keys = ['query','city','title','firm_id','practice','jd_min','jd_max','sort'] as const
+    // pass only supported backend params
+    const keys = ['q','office_city','firm_id','practice','sort'] as const
     for (const k of keys) {
-      const val = pickString(sp[k])
+      const val = k === 'q' ? pickString(sp.query)
+        : k === 'office_city' ? pickString(sp.city)
+        : pickString(sp[k])
       if (val) usp.set(k, val)
     }
     usp.set('page', String(nextPage))
@@ -92,7 +93,7 @@ export default async function Home({
                         || (typeof rec.uuid === 'string' ? (rec.uuid as string) : undefined)
                       const href = linkId
                         ? `/attorney/${encodeURIComponent(linkId)}?name=${encodeURIComponent(a.full_name)}`
-                        : `/search?query=${encodeURIComponent(a.full_name)}`
+                        : `/search?q=${encodeURIComponent(a.full_name)}`
                       return (
                         <a href={href} className="hover:underline">
                           {a.full_name}

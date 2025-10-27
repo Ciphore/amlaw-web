@@ -43,8 +43,8 @@ export default function Filters() {
         <label className="block text-sm font-medium">Query</label>
         <input
           className="border rounded w-full px-2 py-1"
-          defaultValue={params.get('query') || ''}
-          onBlur={(e) => set('query', e.target.value || undefined)}
+          defaultValue={params.get('q') || ''}
+          onBlur={(e) => set('q', e.target.value || undefined)}
           placeholder="e.g. private equity"
         />
       </div>
@@ -54,8 +54,8 @@ export default function Filters() {
         <label className="block text-sm font-medium">City</label>
         <select
           className="border rounded w-full px-2 py-1"
-          value={params.get('city') || ''}
-          onChange={(e) => set('city', e.target.value || undefined)}
+          value={params.get('office_city') || ''}
+          onChange={(e) => set('office_city', e.target.value || undefined)}
         >
           <option value="">All</option>
           {Object.entries(facets.office_city || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k, v]) => (
