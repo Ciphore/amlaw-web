@@ -2,18 +2,20 @@ import Filters from '@/components/Filters'
 
 import { searchAttorneys, type SearchResponse } from '@/lib/api'
 
+
+
+function pickString(v: string | string[] | undefined): string | undefined {
+  if (typeof v === 'string') return v
+  if (Array.isArray(v)) return v[0]
+  return undefined
+}
+
 function getQS(searchParams: Record<string, string | undefined>) {
   const usp = new URLSearchParams()
   Object.entries(searchParams).forEach(([k, v]) => {
     if (v) usp.set(k, v)
   })
   return usp.toString()
-}
-
-function pickString(v: string | string[] | undefined): string | undefined {
-  if (typeof v === 'string') return v
-  if (Array.isArray(v)) return v[0]
-  return undefined
 }
 
 export default async function Home({
@@ -29,9 +31,8 @@ export default async function Home({
   const sort = pickString(sp.sort) || '' // e.g. 'jd_year:desc' or 'last_name:asc'
 
   const qs = getQS({
-    // align with backend: q, office_city, practice, firm_id
-    q: pickString(sp.query),
-    office_city: pickString(sp.city),
+    q: pickString(sp.q),
+    office_city: pickString(sp.office_city),
     firm_id: pickString(sp.firm_id),
     practice: pickString(sp.practice),
     limit: String(limit),
@@ -42,8 +43,8 @@ export default async function Home({
 
   // Use shared helper which normalizes shapes and guards against non-JSON
   const data: SearchResponse = await searchAttorneys({
-    q: pickString(sp.query),
-    office_city: pickString(sp.city),
+    q: pickString(sp.q),
+    office_city: pickString(sp.office_city),
     practice: pickString(sp.practice),
     firm_id: pickString(sp.firm_id),
     limit,
@@ -55,8 +56,8 @@ export default async function Home({
     // pass only supported backend params
     const keys = ['q','office_city','firm_id','practice','sort'] as const
     for (const k of keys) {
-      const val = k === 'q' ? pickString(sp.query)
-        : k === 'office_city' ? pickString(sp.city)
+      const val = k === 'q' ? pickString(sp.q)
+        : k === 'office_city' ? pickString(sp.office_city)
         : pickString(sp[k])
       if (val) usp.set(k, val)
     }

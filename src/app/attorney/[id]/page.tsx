@@ -41,9 +41,9 @@ async function sameOriginApiBase(): Promise<string> {
   return `${site}/api`
 }
 
-export default async function AttorneyPage({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string | string[] | undefined> }) {
-  const p = params
-  const sp = searchParams || {}
+export default async function AttorneyPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const p = await params
+  const sp = searchParams ? await searchParams : {}
   const rawName = sp.name
   const name = typeof rawName === 'string' ? rawName.replace(/\+/g, ' ').trim() : Array.isArray(rawName) ? String(rawName[0]).replace(/\+/g, ' ').trim() : undefined
   let r: Response
