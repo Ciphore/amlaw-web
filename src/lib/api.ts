@@ -35,56 +35,22 @@ export async function searchAttorneys(params: SearchParams = {}): Promise<Search
   const offset = typeof params.offset === 'number' ? params.offset : 0
   const q = (params.q || '').trim()
 
-  const base = (typeof window === 'undefined') ? (process.env.NEXT_PUBLIC_SITE_URL || '') : ''
-
   const makeEmpty = (): SearchResponse => ({ hits: [], total: 0, limit, offset })
 
-  if (!q) {
-    const usp = new URLSearchParams()
-    usp.set('limit', String(limit))
-    usp.set('offset', String(offset))
-    if (params.office_city) usp.set('office_city', params.office_city)
-    if (params.firm_id) usp.set('firm_id', params.firm_id)
-    if (params.practice) usp.set('practice', params.practice)
-    const uStr = `${base || ''}/api/attorneys?${usp.toString()}`
+  const API_URL = process.env.UPSTREAM_API_BASE_URL || 'https://api.viewport.software'
+  const u = new URL('/v1/search/attorneys', API_URL)
 
-    let r: Response
-    try {
-      r = await fetch(uStr, { cache: 'no-store' })
-    } catch {
-      return makeEmpty()
-    }
-    if (!r.ok) return makeEmpty()
-
-    const ct = r.headers.get('content-type') || 'application/json'
-    if (!ct.includes('json')) return makeEmpty()
-
-    let json: unknown
-    try {
-      json = await r.json()
-    } catch {
-      return makeEmpty()
-    }
-
-    const obj = (json || {}) as { items?: Attorney[]; hits?: Attorney[]; estimatedTotal?: number; total?: number }
-    const items = obj.items ?? obj.hits ?? (Array.isArray(json) ? (json as Attorney[]) : [])
-    const estimatedTotal = obj.estimatedTotal ?? obj.total ?? items.length
-
-    return { hits: items, total: estimatedTotal, limit, offset }
-  }
-
-  const usp = new URLSearchParams()
-  usp.set('q', q)
+  const usp = u.searchParams
+  if (q) usp.set('q', q)
   usp.set('limit', String(limit))
   usp.set('offset', String(offset))
   if (params.office_city) usp.set('office_city', params.office_city)
   if (params.firm_id) usp.set('firm_id', params.firm_id)
   if (params.practice) usp.set('practice', params.practice)
-  const uStr = `${base || ''}/api/search?${usp.toString()}`
 
   let r: Response
   try {
-    r = await fetch(uStr, { cache: 'no-store' })
+    r = await fetch(u.toString(), { cache: 'no-store' })
   } catch {
     return makeEmpty()
   }
@@ -110,11 +76,12 @@ export async function searchAttorneys(params: SearchParams = {}): Promise<Search
 export type Facets = Record<string, Record<string, number>>
 
 export async function fetchFacets(): Promise<Facets> {
-  // Fetch via Next proxy to avoid CORS in browser; mirrors /v1/search/facets
-  const base = (typeof window === 'undefined') ? process.env.NEXT_PUBLIC_SITE_URL || '' : ''
+  const API_URL = process.env.UPSTREAM_API_BASE_URL || 'https://api.viewport.software'
+  const u = new URL('/v1/search/facets', API_URL)
+
   let r: Response
   try {
-    r = await fetch(`${base}/api/search/facets`, { cache: 'no-store' })
+    r = await fetch(u.toString(), { cache: 'no-store' })
   } catch {
     return {}
   }
