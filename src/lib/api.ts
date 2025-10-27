@@ -42,18 +42,36 @@ export async function searchAttorneys(params: SearchParams = {}): Promise<Search
     if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v))
   })
 
-  const res = await fetch(url.toString(), { cache: 'no-store' })
-  if (!res.ok) throw new Error(`search failed: ${res.status} ${res.statusText}`)
+  let res: Response
+  try {
+    res = await fetch(url.toString(), { cache: 'no-store' })
+  } catch (e) {
+    // Network failure: return empty results to avoid 500s
+    return { hits: [], total: 0, limit: Number(url.searchParams.get('limit') || 20), offset: Number(url.searchParams.get('offset') || 0) }
+  }
 
-  const data = await res.json() as {
+  // If upstream returns 404 or other non-OK, degrade gracefully
+  if (!res.ok) {
+    return { hits: [], total: 0, limit: Number(url.searchParams.get('limit') || 20), offset: Number(url.searchParams.get('offset') || 0) }
+  }
+
+  // Attempt JSON parse, fallback if body isn’t JSON
+  let data: unknown
+  try {
+    data = await res.json()
+  } catch {
+    return { hits: [], total: 0, limit: Number(url.searchParams.get('limit') || 20), offset: Number(url.searchParams.get('offset') || 0) }
+  }
+
+  const obj = (data || {}) as {
     items?: Attorney[]
     estimatedTotal?: number
     hits?: Attorney[]
     total?: number
   }
 
-  const items = data.items ?? data.hits ?? []
-  const estimatedTotal = data.estimatedTotal ?? data.total ?? items.length
+  const items = obj.items ?? obj.hits ?? []
+  const estimatedTotal = obj.estimatedTotal ?? obj.total ?? items.length
 
   return {
     hits: items,
