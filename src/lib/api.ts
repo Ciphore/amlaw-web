@@ -30,8 +30,9 @@ export type SearchResponse = {
   offset: number
 }
 
-// Default to upstream if env is missing to avoid Invalid URL
-const API_URL = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim()) || 'https://api.viewport.software'
+// Enforce absolute API base; fall back to upstream if provided value is relative
+const envApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim()
+const API_URL = /^https?:\/\//.test(envApiUrl) ? envApiUrl : 'https://api.viewport.software'
 const RAW_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX || '/v1'
 const API_PREFIX = RAW_PREFIX.startsWith('/') ? RAW_PREFIX : `/${RAW_PREFIX}`
 

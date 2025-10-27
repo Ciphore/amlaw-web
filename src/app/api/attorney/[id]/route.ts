@@ -141,7 +141,9 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
       try {
         const u = new URL((_req as unknown as { url: string }).url)
         const v = u.searchParams.get('name')
-        return v && v.trim() !== '' ? v : null
+        if (!v) return null
+        const norm = v.replace(/\+/g, ' ').replace(/\s+/g, ' ').trim()
+        return norm.length > 0 ? norm : null
       } catch {
         return null
       }
@@ -170,10 +172,12 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
         try {
           const json = (await r.json()) as (Attorney[] | { items?: Attorney[]; hits?: Attorney[] })
           const list = Array.isArray(json) ? json : (json.items || json.hits || [])
+          const target = name.trim().toLowerCase()
           const match = list.find((raw) => {
             const rec = raw as Record<string, unknown>
             const full = typeof rec.full_name === 'string' ? rec.full_name : typeof rec.name === 'string' ? rec.name : undefined
-            return typeof full === 'string' && full.trim().toLowerCase() === name.trim().toLowerCase()
+            const normFull = typeof full === 'string' ? full.replace(/\s+/g, ' ').trim().toLowerCase() : undefined
+            return !!normFull && normFull === target
           })
           const norm = normalizeAttorney(match as unknown)
           if (norm) {

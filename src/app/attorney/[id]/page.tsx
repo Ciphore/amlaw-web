@@ -41,12 +41,17 @@ async function sameOriginApiBase(): Promise<string> {
   return `${site}/api`
 }
 
-export default async function AttorneyPage({ params }: { params: { id: string } }) {
+export default async function AttorneyPage({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string | string[] | undefined> }) {
   const p = params
+  const sp = searchParams || {}
+  const rawName = sp.name
+  const name = typeof rawName === 'string' ? rawName.replace(/\+/g, ' ').trim() : Array.isArray(rawName) ? String(rawName[0]).replace(/\+/g, ' ').trim() : undefined
   let r: Response
   try {
     const base = await sameOriginApiBase()
-    r = await fetch(`${base}/attorney/${encodeURIComponent(p.id)}`, { cache: 'no-store' })
+    const url = new URL(`${base}/attorney/${encodeURIComponent(p.id)}`)
+    if (name && name.length > 0) url.searchParams.set('name', name)
+    r = await fetch(url.toString(), { cache: 'no-store' })
   } catch (e) {
     return <div className="p-6">Not found</div>
   }
