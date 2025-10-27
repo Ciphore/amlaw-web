@@ -1,4 +1,7 @@
 import { fetchFacets, searchAttorneys, type SearchResponse } from "@/lib/api"
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import AddToListButton from '@/components/AddToListButton'
 
 export default async function SearchPage({
   searchParams,
@@ -8,6 +11,19 @@ export default async function SearchPage({
   const limit = typeof searchParams.limit === 'string' ? Number(searchParams.limit) : 20
   const page = typeof searchParams.page === 'string' ? Number(searchParams.page) : 1
   const offset = (page - 1) * limit
+
+  // Server-side auth gate
+  const cookieStore = await cookies()
+  const all = cookieStore.getAll()
+  const hasAuth = all.some((c) => c.name === 'sb-access-token' || /^sb-.*-auth-token$/.test(c.name))
+  if (!hasAuth) {
+    const usp = new URLSearchParams()
+    if (query) usp.set('q', query)
+    if (city) usp.set('office_city', city)
+    usp.set('page', String(page))
+    usp.set('limit', String(limit))
+    redirect(`/login?redirect=${encodeURIComponent(`/search?${usp.toString()}`)}`)
+  }
 
   const data: SearchResponse = await searchAttorneys({ q: query, office_city: city, limit, offset })
   const facets = await fetchFacets()
@@ -52,6 +68,17 @@ export default async function SearchPage({
         {data.hits.map((r) => (
           <li key={r.attorney_id} style={{ marginBottom: 12 }}>
             <strong>{r.full_name}</strong> — {r.title} @ {r.firm_name} — {r.office_city}
+            <div style={{ display: 'inline-block', marginLeft: 8 }}>
+              {/* Client-side add-to-list */}
+              <AddToListButton item={{
+                attorney_id: r.attorney_id,
+                full_name: r.full_name,
+                title: r.title,
+                firm_name: r.firm_name,
+                office_city: r.office_city,
+                headshot_url: r.headshot_url
+              }} />
+            </div>
           </li>
         ))}
       </ul>

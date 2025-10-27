@@ -1,4 +1,7 @@
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
+import { supabaseServer } from '@/lib/supabaseServer'
+import { redirect } from 'next/navigation'
+import AddToListButton from '@/components/AddToListButton'
 
 // Ensure URL.canParse exists in runtimes where it's missing
 // Minimal, typed polyfill executed at module load time
@@ -46,6 +49,18 @@ export default async function AttorneyPage({ params, searchParams }: { params: P
   const sp = searchParams ? await searchParams : {}
   const rawName = sp.name
   const name = typeof rawName === 'string' ? rawName.replace(/\+/g, ' ').trim() : Array.isArray(rawName) ? String(rawName[0]).replace(/\+/g, ' ').trim() : undefined
+
+  // Server-side auth gate: redirect unauthenticated users to login
+  const cookieStore = await cookies()
+  const all = cookieStore.getAll()
+  const hasAuth = all.some((c) => c.name === 'sb-access-token' || /^sb-.*-auth-token$/.test(c.name))
+  if (!hasAuth) {
+    const qs = new URLSearchParams()
+    if (name) qs.set('name', name)
+    const redirectTo = `/attorney/${encodeURIComponent(p.id)}${qs.size ? `?${qs.toString()}` : ''}`
+    redirect(`/login?redirect=${encodeURIComponent(redirectTo)}`)
+  }
+
   let r: Response
   try {
     const base = await sameOriginApiBase()
@@ -80,6 +95,16 @@ export default async function AttorneyPage({ params, searchParams }: { params: P
           <h1 className="text-2xl font-semibold">{a.full_name}</h1>
           <div className="text-gray-600">{titleFirm}</div>
           <div className="text-gray-600">{a.office_city}{a.office_country ? `, ${a.office_country}` : ''} • JD {a.jd_year ?? '—'}</div>
+          <div className="mt-2">
+            <AddToListButton item={{
+              attorney_id: a.attorney_id,
+              full_name: a.full_name,
+              title: a.title,
+              firm_name: a.firm_name,
+              office_city: a.office_city,
+              headshot_url: a.headshot_url
+            }} />
+          </div>
         </div>
       </div>
       {a.bio && <p className="leading-7 whitespace-pre-wrap">{a.bio}</p>}

@@ -1,121 +1,56 @@
-import Filters from '@/components/Filters'
+import { fetchFacets } from '@/lib/api'
+import Link from 'next/link'
 
-import { searchAttorneys, type SearchResponse } from '@/lib/api'
-
-
-
-function pickString(v: string | string[] | undefined): string | undefined {
-  if (typeof v === 'string') return v
-  if (Array.isArray(v)) return v[0]
-  return undefined
-}
-
-function getQS(searchParams: Record<string, string | undefined>) {
-  const usp = new URLSearchParams()
-  Object.entries(searchParams).forEach(([k, v]) => {
-    if (v) usp.set(k, v)
-  })
-  return usp.toString()
-}
-
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
-  const sp = await searchParams
-
-  const limit = Number(pickString(sp.limit) || 20)
-  const page = Number(pickString(sp.page) || 1)
-  const offset = (page - 1) * limit
-  const sort = pickString(sp.sort) || '' // e.g. 'jd_year:desc' or 'last_name:asc'
-
-  const qs = getQS({
-    q: pickString(sp.q),
-    office_city: pickString(sp.office_city),
-    firm_id: pickString(sp.firm_id),
-    practice: pickString(sp.practice),
-    limit: String(limit),
-    offset: String(offset),
-    sort,
-    meta: '1',
-  })
-
-  // Use shared helper which normalizes shapes and guards against non-JSON
-  const data: SearchResponse = await searchAttorneys({
-    q: pickString(sp.q),
-    office_city: pickString(sp.office_city),
-    practice: pickString(sp.practice),
-    firm_id: pickString(sp.firm_id),
-    limit,
-    offset,
-  })
-
-  function buildHref(nextPage: number) {
-    const usp = new URLSearchParams()
-    // pass only supported backend params
-    const keys = ['q','office_city','firm_id','practice','sort'] as const
-    for (const k of keys) {
-      const val = k === 'q' ? pickString(sp.q)
-        : k === 'office_city' ? pickString(sp.office_city)
-        : pickString(sp[k])
-      if (val) usp.set(k, val)
-    }
-    usp.set('page', String(nextPage))
-    usp.set('limit', String(limit))
-    return `?${usp.toString()}`
-  }
+export default async function Home() {
+  // Fetch facets to power high-level intelligence cards
+  const facets = await fetchFacets()
+  const topCities = Object.entries(facets.office_city || {}).sort((a,b)=>b[1]-a[1]).slice(0,8)
+  const topPractices = Object.entries((facets.practice_areas || facets.practice || {})).sort((a,b)=>b[1]-a[1]).slice(0,8)
+  const topFirms = Object.entries(facets.firm_name || {}).sort((a,b)=>b[1]-a[1]).slice(0,8)
 
   return (
     <main className="p-6">
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6 max-w-6xl mx-auto">
-        <Filters />
+      <div className="max-w-6xl mx-auto space-y-8">
+        <section>
+          <h1 className="text-3xl font-semibold">Legal Intelligence</h1>
+          <p className="text-sm text-foreground/70 mt-2">Explore attorney distribution across firms, cities, and practice areas.</p>
+        </section>
 
-        <div>
-          <h1 className="text-2xl font-semibold">Attorney Directory</h1>
-
-          <div className="mt-2 text-sm text-gray-600">Showing {data.offset + 1}–{Math.min(data.offset + limit, data.total)} of {data.total}</div>
-
-          <ul className="mt-4 grid gap-2">
-            {data.hits.map((a) => (
-              <li key={a.attorney_id} className="border rounded p-3 flex gap-3">
-                {a.headshot_url ? (
-                  <img src={a.headshot_url} alt="" className="w-14 h-14 rounded object-cover" />
-                ) : (
-                  <div className="w-14 h-14 rounded bg-gray-200" />
-                )}
-                <div>
-                  <div className="font-semibold">
-                    {(() => {
-                      const rec = a as unknown as Record<string, unknown>
-                      const linkId = a.attorney_id
-                        || (typeof rec.id === 'string' ? (rec.id as string) : undefined)
-                        || (typeof rec.code === 'string' ? (rec.code as string) : undefined)
-                        || (typeof rec.uuid === 'string' ? (rec.uuid as string) : undefined)
-                      const href = linkId
-                        ? `/attorney/${encodeURIComponent(linkId)}?name=${encodeURIComponent(a.full_name)}`
-                        : `/search?q=${encodeURIComponent(a.full_name)}`
-                      return (
-                        <a href={href} className="hover:underline">
-                          {a.full_name}
-                        </a>
-                      )
-                    })()}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {a.title} @ {a.firm_name} — {a.office_city} • JD {a.jd_year ?? '—'}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          {/* Simple pager */}
-          <div className="mt-6 flex gap-2">
-            <a className="border rounded px-3 py-1" href={buildHref(Math.max(1, page - 1))}>Prev</a>
-            <a className="border rounded px-3 py-1" href={buildHref(page + 1)}>Next</a>
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="border rounded p-4">
+            <h2 className="font-semibold mb-2">Top Cities</h2>
+            <ul className="space-y-1">
+              {topCities.length === 0 && <li className="text-sm text-foreground/60">No data available</li>}
+              {topCities.map(([city,count])=> (
+                <li key={city} className="text-sm flex justify-between"><span>{city}</span><span className="text-foreground/60">{count}</span></li>
+              ))}
+            </ul>
           </div>
-        </div>
+          <div className="border rounded p-4">
+            <h2 className="font-semibold mb-2">Top Practice Areas</h2>
+            <ul className="space-y-1">
+              {topPractices.length === 0 && <li className="text-sm text-foreground/60">No data available</li>}
+              {topPractices.map(([pa,count])=> (
+                <li key={pa} className="text-sm flex justify-between"><span>{pa}</span><span className="text-foreground/60">{count}</span></li>
+              ))}
+            </ul>
+          </div>
+          <div className="border rounded p-4">
+            <h2 className="font-semibold mb-2">Top Firms</h2>
+            <ul className="space-y-1">
+              {topFirms.length === 0 && <li className="text-sm text-foreground/60">No data available</li>}
+              {topFirms.map(([firm,count])=> (
+                <li key={firm} className="text-sm flex justify-between"><span>{firm}</span><span className="text-foreground/60">{count}</span></li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="flex gap-3">
+          <Link href="/explore" className="border rounded px-3 py-2">Explore Directory</Link>
+          <Link href="/search" className="border rounded px-3 py-2">Advanced Search</Link>
+          <Link href="/lists" className="border rounded px-3 py-2">Manage Lists</Link>
+        </section>
       </div>
     </main>
   )

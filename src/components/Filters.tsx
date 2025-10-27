@@ -1,135 +1,136 @@
-'use client'
+"use client"
+import { useEffect, useMemo, useState } from "react"
+import { useQueryParams } from "@/lib/useSearchParams"
 
-import { useEffect, useState } from 'react'
-import { useQueryParams } from '@/lib/useSearchParams'
+// Use a flexible facets map to tolerate upstream variations
+type Facets = Record<string, Record<string, number>>
 
-type Facets = {
-  practice_areas?: Record<string, number>
-  office_city?: Record<string, number>
-  title?: Record<string, number>
-  firm_name?: Record<string, number>
-  jd_year?: Record<string, number>
-}
-
-// Always use same-origin API proxy to avoid browser CORS when deployed
-const BASE = '/api'
-
-export default function Filters() {
-  const [facets, setFacets] = useState<Facets | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+export default function Filters({ disabled = false }: { disabled?: boolean }) {
   const { params, set } = useQueryParams()
+  const [facets, setFacets] = useState<Facets | null>(null)
 
   useEffect(() => {
-    fetch(`${BASE}/search/facets`, { cache: 'no-store' })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
-      .then(setFacets)
-      .catch((e) => setErr(e.message))
-  }, [])
+    let cancelled = false
+    async function run() {
+      if (disabled) {
+        setFacets(null)
+        return
+      }
+      try {
+        const r = await fetch('/api/search/facets', { cache: 'no-store' })
+        if (!r.ok) return
+        const data = await r.json()
+        if (!cancelled) setFacets(data)
+      } catch {
+        // ignore
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [disabled])
 
-  if (err) return <div className="text-red-600">Facets error: {err}</div>
-  if (!facets) return <div>Loading filters…</div>
-
-  const jdYears = Object.keys(facets.jd_year || {}).map(Number).sort((a,b)=>a-b)
-  const minJD = jdYears[0] ?? 1990
-  const maxJD = jdYears.at(-1) ?? minJD
+  const cities = useMemo(() => Object.keys(facets?.office_city || {}), [facets])
+  const practices = useMemo(() => Object.keys((facets?.practice_areas || facets?.practice || {})), [facets])
+  const titles = useMemo(() => Object.keys(facets?.title || {}), [facets])
+  const firms = useMemo(() => Object.keys(facets?.firm_name || {}), [facets])
 
   return (
-    <aside className="p-4 border rounded space-y-4">
-      {/* Query */}
+    <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium">Query</label>
+        <label className="block text-sm font-medium mb-1">Query</label>
         <input
-          className="border rounded w-full px-2 py-1"
-          defaultValue={params.get('q') || ''}
-          onBlur={(e) => set('q', e.target.value || undefined)}
+          type="search"
+          disabled={disabled}
           placeholder="e.g. private equity"
+          defaultValue={params.get('q') || ''}
+          onChange={(e) => set('q', e.target.value)}
+          className="w-full rounded border px-3 py-2 bg-background text-foreground"
         />
       </div>
 
-      {/* City */}
       <div>
-        <label className="block text-sm font-medium">City</label>
+        <label className="block text-sm font-medium mb-1">City</label>
         <select
-          className="border rounded w-full px-2 py-1"
-          value={params.get('office_city') || ''}
-          onChange={(e) => set('office_city', e.target.value || undefined)}
+          disabled={disabled}
+          defaultValue={params.get('office_city') || ''}
+          onChange={(e) => set('office_city', e.target.value)}
+          className="w-full rounded border px-3 py-2 bg-background text-foreground"
         >
           <option value="">All</option>
-          {Object.entries(facets.office_city || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k, v]) => (
-            <option key={k} value={k}>{k} ({v})</option>
+          {cities.map((c) => (
+            <option key={c} value={c}>{c}</option>
           ))}
         </select>
       </div>
 
-      {/* Practice */}
       <div>
-        <label className="block text-sm font-medium">Practice Area</label>
+        <label className="block text-sm font-medium mb-1">Practice Area</label>
         <select
-          className="border rounded w-full px-2 py-1"
-          value={params.get('practice') || ''}
-          onChange={(e) => set('practice', e.target.value || undefined)}
+          disabled={disabled}
+          defaultValue={params.get('practice') || ''}
+          onChange={(e) => set('practice', e.target.value)}
+          className="w-full rounded border px-3 py-2 bg-background text-foreground"
         >
           <option value="">All</option>
-          {Object.entries(facets.practice_areas || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k, v]) => (
-            <option key={k} value={k}>{k} ({v})</option>
+          {practices.map((p) => (
+            <option key={p} value={p}>{p}</option>
           ))}
         </select>
       </div>
 
-      {/* Title */}
       <div>
-        <label className="block text-sm font-medium">Title</label>
+        <label className="block text-sm font-medium mb-1">Title</label>
         <select
-          className="border rounded w-full px-2 py-1"
-          value={params.get('title') || ''}
-          onChange={(e) => set('title', e.target.value || undefined)}
+          disabled={disabled}
+          defaultValue={params.get('title') || ''}
+          onChange={(e) => set('title', e.target.value)}
+          className="w-full rounded border px-3 py-2 bg-background text-foreground"
         >
           <option value="">All</option>
-          {Object.entries(facets.title || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k, v]) => (
-            <option key={k} value={k}>{k} ({v})</option>
+          {titles.map((t) => (
+            <option key={t} value={t}>{t}</option>
           ))}
         </select>
       </div>
 
-      {/* Firm (uses firm_id in query; displays firm_name facets) */}
       <div>
-        <label className="block text-sm font-medium">Firm</label>
+        <label className="block text-sm font-medium mb-1">Firm</label>
         <select
-          className="border rounded w-full px-2 py-1"
-          value={params.get('firm_id') || ''}
-          onChange={(e) => set('firm_id', e.target.value || undefined)}
+          disabled={disabled}
+          defaultValue={params.get('firm_id') || ''}
+          onChange={(e) => set('firm_id', e.target.value)}
+          className="w-full rounded border px-3 py-2 bg-background text-foreground"
         >
           <option value="">All</option>
-          {Object.entries(facets.firm_name || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k, v]) => (
-            <option key={k} value={k}>{k} ({v})</option>
+          {firms.map((f) => (
+            <option key={f} value={f}>{f}</option>
           ))}
         </select>
       </div>
 
-      {/* JD Year range */}
       <div>
-        <label className="block text-sm font-medium">JD Year</label>
-        <div className="flex items-center gap-2">
+        <label className="block text-sm font-medium mb-1">JD Year Range</label>
+        <div className="flex gap-2">
           <input
             type="number"
-            className="border rounded px-2 py-1 w-24"
-            placeholder={`${minJD}`}
-            defaultValue={params.get('jd_min') || ''}
-            onBlur={(e) => set('jd_min', e.target.value || undefined)}
+            disabled={disabled}
+            placeholder="From"
+            className="w-full rounded border px-3 py-2 bg-background text-foreground"
+            onChange={(e) => set('jd_from', e.target.value)}
           />
-          <span>to</span>
           <input
             type="number"
-            className="border rounded px-2 py-1 w-24"
-            placeholder={`${maxJD}`}
-            defaultValue={params.get('jd_max') || ''}
-            onBlur={(e) => set('jd_max', e.target.value || undefined)}
+            disabled={disabled}
+            placeholder="To"
+            className="w-full rounded border px-3 py-2 bg-background text-foreground"
+            onChange={(e) => set('jd_to', e.target.value)}
           />
         </div>
       </div>
-    </aside>
+
+      {disabled && (
+        <p className="text-sm text-foreground/70">Sign in to enable filters.</p>
+      )}
+    </div>
   )
 }
